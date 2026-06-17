@@ -1,6 +1,6 @@
-import { FlashcardDeck } from "@/components/flashcards/FlashcardDeck";
+import { FlashcardsView } from "@/components/flashcards/FlashcardsView";
 
 export default async function FlashcardsPage(props: PageProps<"/document/[id]/flashcards">) {
   const { id } = await props.params;
-  return <FlashcardDeck docId={id} />;
+  return <FlashcardsView docId={id} />;
 }

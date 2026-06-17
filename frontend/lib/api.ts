@@ -1,7 +1,9 @@
 import type {
   BackendChatResponse,
   BackendDocumentOut,
-  FlashcardsResponse,
+  BackendFlashcard,
+  FlashcardStatus,
+  GenerateFlashcardsRequest,
   MindMapResponse,
   PageContent,
   QuizResponse,
@@ -60,8 +62,60 @@ export const api = {
       body: JSON.stringify({ length }),
     }),
 
-  getFlashcards: (docId: string): Promise<FlashcardsResponse> =>
-    request<FlashcardsResponse>(`/api/v1/documents/${docId}/flashcards`),
+  generateFlashcards: (
+    documentId: string,
+    req: GenerateFlashcardsRequest,
+  ): Promise<BackendFlashcard[]> =>
+    request<BackendFlashcard[]>(`/api/v1/documents/${documentId}/flashcards/generate`, {
+      method: "POST",
+      body: JSON.stringify(req),
+    }),
+
+  fetchFlashcards: (documentId: string): Promise<BackendFlashcard[]> =>
+    request<BackendFlashcard[]>(`/api/v1/documents/${documentId}/flashcards`),
+
+  createFlashcard: (
+    documentId: string,
+    body: { front: string; back: string },
+  ): Promise<BackendFlashcard> =>
+    request<BackendFlashcard>(`/api/v1/documents/${documentId}/flashcards`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateFlashcard: (
+    id: string,
+    body: { front?: string; back?: string },
+  ): Promise<BackendFlashcard> =>
+    request<BackendFlashcard>(`/api/v1/flashcards/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  updateFlashcardStatus: (
+    id: string,
+    status: FlashcardStatus,
+  ): Promise<BackendFlashcard> =>
+    request<BackendFlashcard>(`/api/v1/flashcards/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+
+  resetFlashcards: (documentId: string): Promise<BackendFlashcard[]> =>
+    request<BackendFlashcard[]>(`/api/v1/documents/${documentId}/flashcards/reset`, {
+      method: "POST",
+    }),
+
+  deleteFlashcard: async (id: string): Promise<void> => {
+    const res = await fetch(`${BASE}/api/v1/flashcards/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => res.statusText);
+      throw new Error(`API ${res.status}: ${msg}`);
+    }
+  },
 
   getQuiz: (docId: string): Promise<QuizResponse> =>
     request<QuizResponse>(`/api/v1/documents/${docId}/quiz`),
