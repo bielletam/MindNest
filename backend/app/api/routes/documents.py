@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
+from app.models.document import Document
 from app.models.page import Page
+from app.models.user import User
 from app.schemas.page import PageOut
 
 router = APIRouter()
@@ -19,8 +21,15 @@ def get_page(
     document_id: str,
     page_number: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> PageOut:
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc or doc.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found.",
+        )
+
     page = (
         db.query(Page)
         .filter(

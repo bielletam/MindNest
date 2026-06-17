@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Citation, Flashcard, Message, MindNestDocument } from "./types";
-import { seedDocs, seedFlashcards } from "./seed-data";
+import { seedFlashcards } from "./seed-data";
 import { api } from "./api";
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ function reducer(state: DocState, action: Action): DocState {
 
 interface DocContextValue {
   state: DocState;
-  activeDoc: MindNestDocument;
+  activeDoc: MindNestDocument | undefined;
   send: (text?: string) => void;
   openCite: (c: Citation) => void;
   openFlashcards: () => void;
@@ -212,8 +212,6 @@ export function useDocContext() {
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
-const SEED_DOCS = seedDocs();
-
 export function DocumentProvider({
   children,
   initialActiveDocId,
@@ -222,8 +220,8 @@ export function DocumentProvider({
   initialActiveDocId?: string;
 }) {
   const [state, dispatch] = useReducer(reducer, {
-    docs: SEED_DOCS,
-    activeDocId: initialActiveDocId ?? SEED_DOCS[0]?.id ?? "sleep",
+    docs: [],
+    activeDocId: initialActiveDocId ?? "",
     messages: [],
     input: "",
     thinking: false,
@@ -241,8 +239,7 @@ export function DocumentProvider({
   const streamTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const thinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const activeDoc =
-    state.docs.find((d) => d.id === state.activeDocId) ?? state.docs[0];
+  const activeDoc = state.docs.find((d) => d.id === state.activeDocId);
 
   const send = useCallback(
     (raw?: string) => {

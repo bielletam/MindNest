@@ -26,7 +26,8 @@ export function SignupForm() {
     setError("");
     setLoading(true);
     try {
-      await signup(name, email, password);
+      const user = await signup(name, email, password);
+      document.cookie = `mn_user=${encodeURIComponent(JSON.stringify({ name: user.name ?? name, email: user.email }))}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign up failed.");
@@ -82,7 +83,7 @@ export function SignupForm() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
             required
-            minLength={6}
+            minLength={8}
           />
         </div>
 

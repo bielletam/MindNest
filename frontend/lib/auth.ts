@@ -1,50 +1,61 @@
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 export interface User {
-  name: string;
+  id: string;
+  name: string | null;
   email: string;
+  created_at: string;
 }
 
-const COOKIE = "mn_session";
-const MAX_AGE = 60 * 60 * 24 * 7; // 7 days
-
-function encode(user: User): string {
-  return btoa(JSON.stringify(user));
-}
-
-function decode(raw: string): User | null {
-  try {
-    return JSON.parse(atob(raw)) as User;
-  } catch {
-    return null;
+async function authRequest<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    const detail = (data as { detail?: string } | null)?.detail;
+    throw new Error(detail ?? `Request failed (${res.status})`);
   }
+  return res.json() as Promise<T>;
 }
 
 export async function signup(name: string, email: string, password: string): Promise<User> {
-  if (!name.trim()) throw new Error("Full name is required.");
-  if (!email.trim()) throw new Error("Email is required.");
-  if (password.length < 6) throw new Error("Password must be at least 6 characters.");
-
-  const user: User = { name: name.trim(), email: email.trim().toLowerCase() };
-  document.cookie = `${COOKIE}=${encode(user)}; path=/; max-age=${MAX_AGE}; SameSite=Lax`;
-  return user;
+  return authRequest<User>("/api/v1/auth/signup", { name, email, password });
 }
 
 export async function login(email: string, password: string): Promise<User> {
-  if (!email.trim()) throw new Error("Email is required.");
-  if (!password) throw new Error("Password is required.");
-
-  // Mock: accept any credentials — replace with real API call later
-  const name = email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  const user: User = { name, email: email.trim().toLowerCase() };
-  document.cookie = `${COOKIE}=${encode(user)}; path=/; max-age=${MAX_AGE}; SameSite=Lax`;
-  return user;
+  return authRequest<User>("/api/v1/auth/login", { email, password });
 }
 
-export function logout(): void {
-  document.cookie = `${COOKIE}=; path=/; max-age=0`;
+export async function logout(): Promise<void> {
+  await fetch(`${BASE}/api/v1/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (typeof document !== "undefined") {
+    document.cookie = "mn_user=; path=/; max-age=0";
+  }
 }
 
-export function getCurrentUser(): User | null {
+export async function getMe(): Promise<User | null> {
+  const res = await fetch(`${BASE}/api/v1/auth/me`, {
+    credentials: "include",
+  });
+  if (!res.ok) return null;
+  return res.json() as Promise<User>;
+}
+
+// Kept for sidebar display — reads the non-httpOnly mn_user cookie set by login pages.
+export function getCurrentUser(): { name: string; email: string } | null {
   if (typeof document === "undefined") return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${COOKIE}=([^;]*)`));
-  return match ? decode(decodeURIComponent(match[1])) : null;
+  const match = document.cookie.match(/(?:^|; )mn_user=([^;]*)/);
+  if (!match) return null;
+  try {
+    return JSON.parse(decodeURIComponent(match[1])) as { name: string; email: string };
+  } catch {
+    return null;
+  }
 }

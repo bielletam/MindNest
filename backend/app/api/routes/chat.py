@@ -1,6 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
-from app.api.deps import require_current_user
+from app.api.deps import get_current_user
+from app.db.session import get_db
+from app.models.document import Document
+from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.rag_service import answer_question
 
@@ -14,13 +18,16 @@ router = APIRouter()
 )
 async def chat(
     request: ChatRequest,
-    current_user: dict = Depends(require_current_user),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ChatResponse:
-    if not request.document_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one document_id is required.",
-        )
+    for doc_id in request.document_ids:
+        doc = db.query(Document).filter(Document.id == doc_id).first()
+        if not doc or doc.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Document '{doc_id}' not found or access denied.",
+            )
 
     result = answer_question(request.query, request.document_ids)
     return ChatResponse(**result)

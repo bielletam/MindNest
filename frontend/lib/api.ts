@@ -10,29 +10,20 @@ import type {
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-function getUserId(): string {
-  if (typeof document === "undefined") return "anonymous";
-  const match = document.cookie.match(/(?:^|; )mn_session=([^;]*)/);
-  if (!match) return "anonymous";
-  try {
-    const user = JSON.parse(atob(decodeURIComponent(match[1]))) as { email?: string };
-    return user.email ?? "anonymous";
-  } catch {
-    return "anonymous";
-  }
-}
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormData = init?.body instanceof FormData;
   const headers: Record<string, string> = {
-    "X-User-Id": getUserId(),
     ...(init?.headers as Record<string, string> ?? {}),
   };
   if (!isFormData) {
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(`${BASE}${path}`, { ...init, headers });
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
   if (!res.ok) {
     const msg = await res.text().catch(() => res.statusText);
     throw new Error(`API ${res.status}: ${msg}`);

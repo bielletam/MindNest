@@ -41,7 +41,7 @@ export function PDFViewer() {
     return () => { ignore = true; };
   }, [activeDoc?.id, state.viewerPage, state.showViewer]);
 
-  if (!state.showViewer) return null;
+  if (!state.showViewer || !activeDoc) return null;
 
   const totalPages = pageData?.total_pages ?? 0;
 

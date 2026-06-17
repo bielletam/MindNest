@@ -6,9 +6,9 @@ import { useDocContext } from "@/lib/document-context";
 import { LogoMarkLarge, LogoMarkWhite } from "@/components/ui/Logo";
 
 const QUICK_PROMPTS = [
-  "How does sleep affect memory consolidation?",
-  "Working memory vs long-term memory?",
-  "Summarize Sleep & Learning",
+  "What is the main topic of this document?",
+  "Summarize the key concepts",
+  "What are the most important points?",
 ];
 
 export function ChatWindow({ docId }: { docId: string }) {
@@ -94,14 +94,6 @@ export function ChatWindow({ docId }: { docId: string }) {
                     {q}
                   </button>
                 ))}
-                <button
-                  onClick={() => { openFlashcards(); router.push(`/document/${docId}/flashcards`); }}
-                  style={{ padding: "10px 15px", border: "1.5px solid var(--mn-border-2)", borderRadius: 999, background: "var(--mn-surface-2)", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#cbd5e1", cursor: "pointer" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--mn-accent)"; e.currentTarget.style.color = "#fff"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--mn-border-2)"; e.currentTarget.style.color = "#cbd5e1"; }}
-                >
-                  Make flashcards from Memory Systems
-                </button>
               </div>
             </div>
           )}

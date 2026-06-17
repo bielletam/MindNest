@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useDocContext } from "@/lib/document-context";
 import { Logo } from "@/components/ui/Logo";
 import { api } from "@/lib/api";
@@ -121,14 +121,18 @@ export function Sidebar({ docId }: { docId: string }) {
     }
   }
 
-  const user = getCurrentUser();
-  const displayName = user?.name ?? "Student";
-  const userInitials = displayName
-    .split(/\s+/)
-    .map((w: string) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const [displayName, setDisplayName] = useState("Student");
+  const [userInitials, setUserInitials] = useState("ST");
+  useEffect(() => {
+    const u = getCurrentUser();
+    if (u?.name) {
+      const name = u.name;
+      setDisplayName(name);
+      setUserInitials(
+        name.split(/\s+/).map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()
+      );
+    }
+  }, []);
 
   return (
     <aside

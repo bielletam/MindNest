@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 export function proxy(request: NextRequest) {
-  const session = request.cookies.get("mn_session");
+  const session = request.cookies.get("mn_token");
   const { pathname } = request.nextUrl;
 
   if (!session) {

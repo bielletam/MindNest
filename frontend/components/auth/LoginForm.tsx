@@ -26,7 +26,8 @@ export function LoginForm() {
     setError("");
     setLoading(true);
     try {
-      await login(email, password);
+      const user = await login(email, password);
+      document.cookie = `mn_user=${encodeURIComponent(JSON.stringify({ name: user.name ?? user.email, email: user.email }))}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
       const from = searchParams.get("from") ?? "/dashboard";
       router.push(from);
     } catch (err) {

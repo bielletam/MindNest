@@ -4,11 +4,12 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user, get_db
 from app.core.config import settings
-from app.db.session import get_db
 from app.models.chunk import Chunk
 from app.models.document import Document, DocumentStatus
 from app.models.page import Page
+from app.models.user import User
 from app.schemas.document import DocumentOut
 from app.services import vectorstore_service
 from app.services.chunking_service import chunk_pages
@@ -35,15 +36,14 @@ def _is_pdf(file: UploadFile) -> bool:
 async def upload_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> DocumentOut:
-    # ── 1. Validate before touching disk ────────────────────────────────────
     if not _is_pdf(file):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only PDF files are accepted (check Content-Type or filename).",
         )
 
-    # ── 2. Save to disk ──────────────────────────────────────────────────────
     upload_dir = Path(settings.UPLOAD_DIR)
     upload_dir.mkdir(parents=True, exist_ok=True)
     dest = upload_dir / f"{uuid.uuid4()}.pdf"
@@ -57,8 +57,8 @@ async def upload_document(
             detail=f"Failed to save uploaded file: {exc}",
         )
 
-    # ── 3. Create initial DB row ─────────────────────────────────────────────
     doc = Document(
+        user_id=current_user.id,
         filename=file.filename or dest.name,
         storage_path=str(dest),
         status=DocumentStatus.uploaded,
@@ -67,7 +67,6 @@ async def upload_document(
     db.commit()
     db.refresh(doc)
 
-    # ── 4. Extract text ──────────────────────────────────────────────────────
     try:
         text = extract_text(str(dest))
     except ValueError as exc:
@@ -90,40 +89,32 @@ async def upload_document(
     db.commit()
     db.refresh(doc)
 
-    # ── 5. Persist pages + chunking/embedding pipeline ───────────────────────
     if doc.status == DocumentStatus.extracted:
         try:
             pages = extract_pages(str(dest))
 
-            # Persist full page text for the preview endpoint
             for p in pages:
                 if p["text"].strip():
-                    db.add(
-                        Page(
-                            document_id=doc.id,
-                            page_number=p["page_number"],
-                            content=p["text"],
-                        )
-                    )
+                    db.add(Page(
+                        document_id=doc.id,
+                        page_number=p["page_number"],
+                        content=p["text"],
+                    ))
             db.commit()
 
-            # Build chunks and embeddings for RAG
             chunks = chunk_pages(pages)
             if chunks:
                 texts = [c["content"] for c in chunks]
                 embeddings = embed_texts(texts)
 
                 for c in chunks:
-                    db.add(
-                        Chunk(
-                            document_id=doc.id,
-                            page_number=c["page_number"],
-                            content=c["content"],
-                            chunk_index=c["chunk_index"],
-                        )
-                    )
+                    db.add(Chunk(
+                        document_id=doc.id,
+                        page_number=c["page_number"],
+                        content=c["content"],
+                        chunk_index=c["chunk_index"],
+                    ))
                 db.commit()
-
                 vectorstore_service.add_chunks(doc.id, chunks, embeddings)
 
             doc.status = DocumentStatus.chunked

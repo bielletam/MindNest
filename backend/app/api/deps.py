@@ -1,28 +1,35 @@
-from typing import Optional
-
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db  # re-export so routes can import from one place
+from app.core.security import decode_access_token
+from app.db.session import get_db
+from app.models.user import User
+
+_COOKIE = "mn_token"
 
 
-async def get_current_user(x_user_id: Optional[str] = Header(default=None)) -> Optional[dict]:
-    """
-    Minimal development auth — reads an X-User-Id header.
-    Replace with JWT verification in the auth milestone.
-    """
-    if x_user_id is None:
-        return None
-    return {"id": x_user_id}
-
-
-async def require_current_user(
-    x_user_id: Optional[str] = Header(default=None),
-) -> dict:
-    """Same as get_current_user but raises 401 when the header is absent."""
-    if not x_user_id:
+def get_current_user(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User:
+    """Read the JWT from the httpOnly cookie and return the authenticated User."""
+    token = request.cookies.get(_COOKIE)
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required. Send X-User-Id header.",
+            detail="Not authenticated.",
         )
-    return {"id": x_user_id}
+    try:
+        user_id = decode_access_token(token)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired or invalid. Please log in again.",
+        )
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account not found.",
+        )
+    return user
