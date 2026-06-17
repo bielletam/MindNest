@@ -7,9 +7,28 @@ from app.db.session import get_db
 from app.models.document import Document
 from app.models.page import Page
 from app.models.user import User
+from app.schemas.document import DocumentOut
 from app.schemas.page import PageOut
 
 router = APIRouter()
+
+
+@router.get(
+    "/documents",
+    response_model=list[DocumentOut],
+    summary="List all documents belonging to the current user",
+)
+def list_documents(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[DocumentOut]:
+    docs = (
+        db.query(Document)
+        .filter(Document.user_id == current_user.id)
+        .order_by(Document.created_at.desc())
+        .all()
+    )
+    return docs  # type: ignore[return-value]
 
 
 @router.get(

@@ -28,7 +28,7 @@ export function SignupForm() {
     try {
       const user = await signup(name, email, password);
       document.cookie = `mn_user=${encodeURIComponent(JSON.stringify({ name: user.name ?? name, email: user.email }))}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
-      router.push("/dashboard");
+      router.push("/document");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign up failed.");
     } finally {

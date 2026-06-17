@@ -5,6 +5,7 @@ import type {
   MindMapResponse,
   PageContent,
   QuizResponse,
+  SummaryLength,
   SummaryResponse,
 } from "./types";
 
@@ -47,11 +48,17 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  listDocuments: (): Promise<BackendDocumentOut[]> =>
+    request<BackendDocumentOut[]>("/api/v1/documents"),
+
   fetchPage: (documentId: string, pageNumber: number): Promise<PageContent> =>
     request<PageContent>(`/api/v1/documents/${documentId}/pages/${pageNumber}`),
 
-  getSummary: (docId: string): Promise<SummaryResponse> =>
-    request<SummaryResponse>(`/api/v1/documents/${docId}/summary`),
+  fetchSummary: (documentId: string, length: SummaryLength): Promise<SummaryResponse> =>
+    request<SummaryResponse>(`/api/v1/documents/${documentId}/summarize`, {
+      method: "POST",
+      body: JSON.stringify({ length }),
+    }),
 
   getFlashcards: (docId: string): Promise<FlashcardsResponse> =>
     request<FlashcardsResponse>(`/api/v1/documents/${docId}/flashcards`),

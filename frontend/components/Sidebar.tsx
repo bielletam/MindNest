@@ -6,7 +6,7 @@ import { useDocContext } from "@/lib/document-context";
 import { Logo } from "@/components/ui/Logo";
 import { api } from "@/lib/api";
 import type { MindNestDocument } from "@/lib/types";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, logout } from "@/lib/auth";
 
 const TOOLS = [
   {
@@ -300,6 +300,24 @@ export function Sidebar({ docId }: { docId: string }) {
           <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#e2e8f0" }}>{displayName}</div>
           <div style={{ fontSize: 11, color: "var(--mn-text-3)" }}>Free plan · {state.docs.length} docs</div>
         </div>
+        <button
+          title="Sign out"
+          onClick={async () => { await logout(); router.push("/login"); }}
+          style={{
+            flexShrink: 0, width: 30, height: 30, borderRadius: 9,
+            border: "none", background: "transparent", cursor: "pointer",
+            color: "var(--mn-text-3)", display: "flex", alignItems: "center", justifyContent: "center",
+            transition: ".15s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,.12)"; e.currentTarget.style.color = "#f87171"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--mn-text-3)"; }}
+        >
+          <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 3H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
+            <polyline points="12 6 15 9 12 12" />
+            <line x1="15" y1="9" x2="6" y2="9" />
+          </svg>
+        </button>
       </div>
     </aside>
   );

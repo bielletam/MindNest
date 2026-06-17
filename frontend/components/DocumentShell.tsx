@@ -13,9 +13,8 @@ interface DocumentShellProps {
 export function DocumentShell({ docId, children }: DocumentShellProps) {
   const { dispatch } = useDocContext();
 
-  // Sync the route's docId into context whenever it changes (e.g. after upload navigates to new doc).
   useEffect(() => {
-    dispatch({ type: "OPEN_DOC", payload: docId });
+    if (docId) dispatch({ type: "OPEN_DOC", payload: docId });
   }, [docId, dispatch]);
 
   return (

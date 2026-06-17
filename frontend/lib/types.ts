@@ -87,6 +87,13 @@ export interface BackendDocumentOut {
   created_at: string;
 }
 
+export type SummaryLength = "short" | "medium" | "detailed";
+
+export interface SummaryResponse {
+  summary: string;
+  length: SummaryLength;
+}
+
 // ─── Legacy API response shapes (kept for mock features) ─────────────────────
 
 export interface UploadResponse {
@@ -101,11 +108,6 @@ export interface ChatRequest {
 }
 
 export interface ChatResponse {
-  text: string;
-  citations: Citation[];
-}
-
-export interface SummaryResponse {
   text: string;
   citations: Citation[];
 }

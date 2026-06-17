@@ -28,7 +28,7 @@ export function LoginForm() {
     try {
       const user = await login(email, password);
       document.cookie = `mn_user=${encodeURIComponent(JSON.stringify({ name: user.name ?? user.email, email: user.email }))}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
-      const from = searchParams.get("from") ?? "/dashboard";
+      const from = searchParams.get("from") ?? "/document";
       router.push(from);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed.");
