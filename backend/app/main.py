@@ -2,8 +2,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
-from app.api.routes import auth, chat, documents, summarize, upload
+from app.api.routes import auth, chat, documents, flashcards, summarize, upload
 from app.db.session import Base, engine
 
 # Register all models so create_all sees every table.
@@ -12,11 +13,25 @@ import app.models.document  # noqa: F401
 import app.models.chunk  # noqa: F401
 import app.models.page  # noqa: F401
 import app.models.summary  # noqa: F401
+import app.models.flashcard  # noqa: F401
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    # Inline migration: add the status column to databases that predate it.
+    # ALTER TABLE is a no-op (caught and ignored) if the column already exists.
+    with engine.connect() as conn:
+        try:
+            conn.execute(
+                text(
+                    "ALTER TABLE flashcards ADD COLUMN status VARCHAR(16) "
+                    "NOT NULL DEFAULT 'still_learning'"
+                )
+            )
+            conn.commit()
+        except Exception:
+            pass  # column already present — nothing to do
     yield
 
 
@@ -35,3 +50,4 @@ app.include_router(upload.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 app.include_router(summarize.router, prefix="/api/v1")
+app.include_router(flashcards.router, prefix="/api/v1")

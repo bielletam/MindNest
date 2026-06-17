@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useReducer,
   useRef,
   type ReactNode,
@@ -56,7 +57,8 @@ type Action =
   | { type: "STUDY_FLIP" }
   | { type: "STUDY_PREV" }
   | { type: "STUDY_NEXT" }
-  | { type: "SET_THINKING"; payload: boolean };
+  | { type: "SET_THINKING"; payload: boolean }
+  | { type: "SET_DOCS"; payload: MindNestDocument[] };
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
 
@@ -125,6 +127,9 @@ function reducer(state: DocState, action: Action): DocState {
 
     case "SET_DRAG_OVER":
       return { ...state, dragOver: action.payload };
+
+    case "SET_DOCS":
+      return { ...state, docs: action.payload };
 
     case "ADD_UPLOAD":
       return { ...state, docs: [...state.docs, action.payload] };
@@ -238,6 +243,32 @@ export function DocumentProvider({
 
   const streamTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const thinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Hydrate docs from backend on mount so they survive page refreshes.
+  useEffect(() => {
+    const PALETTE = ["#8b5cf6", "#ec4899", "#06b6d4", "#22d3ee"];
+    function docColor(id: string) {
+      const n = id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+      return PALETTE[n % PALETTE.length];
+    }
+    api.listDocuments().then((list) => {
+      const docs: MindNestDocument[] = list.map((d) => {
+        const title = d.filename.replace(/\.pdf$/i, "");
+        return {
+          id: d.id,
+          title,
+          short: title.slice(0, 26),
+          author: new Date(d.created_at).toLocaleDateString(),
+          color: docColor(d.id),
+          status: "ready" as const,
+          inContext: false,
+          pages: undefined,
+        };
+      });
+      dispatch({ type: "SET_DOCS", payload: docs });
+    }).catch(() => { /* unauthenticated or network error — leave docs empty */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const activeDoc = state.docs.find((d) => d.id === state.activeDocId);
 

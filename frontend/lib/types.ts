@@ -63,6 +63,25 @@ export interface MindMapNode {
 
 // ─── Backend API shapes ───────────────────────────────────────────────────────
 
+export type FlashcardStatus = "still_learning" | "know";
+
+export interface BackendFlashcard {
+  id: string;
+  front: string;
+  back: string;
+  source: "ai" | "manual";
+  source_pages: number[] | null;
+  status: FlashcardStatus;
+  created_at: string;
+}
+
+export interface GenerateFlashcardsRequest {
+  page_start?: number;
+  page_end?: number;
+  topic?: string;
+  count?: number;
+}
+
 export interface Source {
   document_id: string;
   page_number: number;

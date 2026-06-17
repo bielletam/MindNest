@@ -1,3 +1,6 @@
+import json
+import re
+
 from groq import Groq
 
 from app.core.config import settings
@@ -46,6 +49,59 @@ def summarize_chunk(text: str) -> str:
         ],
         max_tokens=256,
     )
+
+
+def generate_flashcards(text: str, count: int, topic: str | None) -> list[dict]:
+    """Generate flashcard dicts [{front, back}, ...] from source text."""
+    topic_line = f" Focus specifically on the topic: {topic}." if topic else ""
+    raw = _chat(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "You are an academic flashcard generator. You create flashcards only "
+                    "from the content given to you. Never introduce facts not present in "
+                    "the source text. Each flashcard should test one clear, specific "
+                    "concept — avoid vague or overly broad questions."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Create {count} flashcards from the following content.{topic_line} "
+                    "Each flashcard should have a 'front' (a question or term) and a "
+                    "'back' (the answer or definition). Focus on key concepts, "
+                    "definitions, and important facts a student would need to remember.\n\n"
+                    f"Content:\n{text}\n\n"
+                    "Return ONLY a JSON array in this exact format, no markdown "
+                    "formatting, no commentary:\n"
+                    '[{"front": "...", "back": "..."}, ...]'
+                ),
+            },
+        ],
+        max_tokens=3000,
+    )
+
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip())
+    try:
+        items: list = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"LLM returned invalid JSON for flashcards: {exc}") from exc
+
+    valid = [
+        {"front": item["front"].strip(), "back": item["back"].strip()}
+        for item in items
+        if isinstance(item, dict)
+        and isinstance(item.get("front"), str)
+        and item["front"].strip()
+        and isinstance(item.get("back"), str)
+        and item["back"].strip()
+    ]
+
+    if not valid:
+        raise ValueError("LLM returned no valid flashcard items.")
+
+    return valid
 
 
 def combine_summaries(summaries: list[str], target_words: int) -> str:
