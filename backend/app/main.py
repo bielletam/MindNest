@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api.routes import auth, chat, documents, flashcards, summarize, upload
+from app.api.routes import auth, chat, documents, flashcards, mindmap, quiz, summarize, upload
 from app.db.session import Base, engine
 
 # Register all models so create_all sees every table.
@@ -14,6 +14,8 @@ import app.models.chunk  # noqa: F401
 import app.models.page  # noqa: F401
 import app.models.summary  # noqa: F401
 import app.models.flashcard  # noqa: F401
+import app.models.quiz  # noqa: F401
+import app.models.mindmap  # noqa: F401
 
 
 @asynccontextmanager
@@ -51,3 +53,5 @@ app.include_router(chat.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 app.include_router(summarize.router, prefix="/api/v1")
 app.include_router(flashcards.router, prefix="/api/v1")
+app.include_router(quiz.router, prefix="/api/v1")
+app.include_router(mindmap.router, prefix="/api/v1")

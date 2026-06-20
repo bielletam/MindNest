@@ -58,7 +58,8 @@ type Action =
   | { type: "STUDY_PREV" }
   | { type: "STUDY_NEXT" }
   | { type: "SET_THINKING"; payload: boolean }
-  | { type: "SET_DOCS"; payload: MindNestDocument[] };
+  | { type: "SET_DOCS"; payload: MindNestDocument[] }
+  | { type: "REMOVE_DOC"; payload: string };
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
 
@@ -130,6 +131,9 @@ function reducer(state: DocState, action: Action): DocState {
 
     case "SET_DOCS":
       return { ...state, docs: action.payload };
+
+    case "REMOVE_DOC":
+      return { ...state, docs: state.docs.filter((d) => d.id !== action.payload) };
 
     case "ADD_UPLOAD":
       return { ...state, docs: [...state.docs, action.payload] };

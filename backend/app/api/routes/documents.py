@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.document import Document
+from app.models.flashcard import Flashcard
 from app.models.page import Page
 from app.models.user import User
 from app.schemas.document import DocumentOut
@@ -76,3 +77,24 @@ def get_page(
         content=page.content,
         total_pages=int(total),
     )
+
+
+@router.delete(
+    "/documents/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a document and all its pages and flashcards",
+)
+def delete_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc or doc.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    db.query(Flashcard).filter(Flashcard.document_id == document_id).delete()
+    db.query(Page).filter(Page.document_id == document_id).delete()
+    db.delete(doc)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

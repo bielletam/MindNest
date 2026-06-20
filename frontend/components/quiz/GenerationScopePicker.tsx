@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
-import type { BackendFlashcard } from "@/lib/types";
+import type { QuizWithQuestions } from "@/lib/types";
 
 type Mode = "whole" | "range";
 
 interface Props {
   docId: string;
-  onGenerated: (cards: BackendFlashcard[]) => void;
+  onGenerated: (quiz: QuizWithQuestions) => void;
 }
 
 export function GenerationScopePicker({ docId, onGenerated }: Props) {
@@ -16,6 +16,7 @@ export function GenerationScopePicker({ docId, onGenerated }: Props) {
   const [pageStart, setPageStart] = useState("");
   const [pageEnd, setPageEnd] = useState("");
   const [count, setCount] = useState("10");
+  const [title, setTitle] = useState("");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,18 +24,19 @@ export function GenerationScopePicker({ docId, onGenerated }: Props) {
     setError("");
     setGenerating(true);
     try {
-      const req: Parameters<typeof api.generateFlashcards>[1] = {
-        count: Math.min(30, Math.max(1, parseInt(count, 10) || 10)),
+      const req: Parameters<typeof api.generateQuiz>[1] = {
+        count: Math.min(30, Math.max(3, parseInt(count, 10) || 10)),
       };
+      if (title.trim()) req.title = title.trim();
       if (mode === "range") {
         req.page_start = parseInt(pageStart, 10);
         req.page_end = parseInt(pageEnd, 10);
       }
-      const cards = await api.generateFlashcards(docId, req);
-      onGenerated(cards);
+      const quiz = await api.generateQuiz(docId, req);
+      onGenerated(quiz);
+      setTitle("");
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Generation failed.";
-      // Strip the "API 400: " prefix and parse the detail JSON if present
       const match = raw.match(/API \d+: (.+)/);
       if (match) {
         try {
@@ -78,17 +80,24 @@ export function GenerationScopePicker({ docId, onGenerated }: Props) {
       }}
     >
       <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--mn-text-3)", marginBottom: 12 }}>
-        Generate flashcards
+        Generate quiz
+      </div>
+
+      {/* Optional title */}
+      <div style={{ marginBottom: 12 }}>
+        <input
+          type="text"
+          placeholder="Quiz title (optional)"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          style={inputStyle}
+        />
       </div>
 
       {/* Mode tabs */}
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-        <button style={btnStyle(mode === "whole")} onClick={() => setMode("whole")}>
-          Whole document
-        </button>
-        <button style={btnStyle(mode === "range")} onClick={() => setMode("range")}>
-          Page range
-        </button>
+        <button style={btnStyle(mode === "whole")} onClick={() => setMode("whole")}>Whole document</button>
+        <button style={btnStyle(mode === "range")} onClick={() => setMode("range")}>Page range</button>
       </div>
 
       {/* Scope inputs */}
@@ -96,33 +105,23 @@ export function GenerationScopePicker({ docId, onGenerated }: Props) {
         {mode === "range" && (
           <>
             <input
-              type="number"
-              min={1}
-              placeholder="From page"
-              value={pageStart}
+              type="number" min={1} placeholder="From page" value={pageStart}
               onChange={(e) => setPageStart(e.target.value)}
               style={{ ...inputStyle, width: 110 }}
             />
             <span style={{ color: "var(--mn-text-3)", fontSize: 13 }}>–</span>
             <input
-              type="number"
-              min={1}
-              placeholder="To page"
-              value={pageEnd}
+              type="number" min={1} placeholder="To page" value={pageEnd}
               onChange={(e) => setPageEnd(e.target.value)}
               style={{ ...inputStyle, width: 110 }}
             />
           </>
         )}
 
-        {/* Count */}
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <span style={{ fontSize: 12.5, color: "var(--mn-text-3)", whiteSpace: "nowrap" }}>Cards:</span>
+          <span style={{ fontSize: 12.5, color: "var(--mn-text-3)", whiteSpace: "nowrap" }}>Questions:</span>
           <input
-            type="number"
-            min={1}
-            max={30}
-            value={count}
+            type="number" min={3} max={30} value={count}
             onChange={(e) => setCount(e.target.value)}
             style={{ ...inputStyle, width: 60 }}
           />

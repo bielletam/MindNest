@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useRef, useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useDocContext } from "@/lib/document-context";
 import { Logo } from "@/components/ui/Logo";
 import { api } from "@/lib/api";
@@ -11,6 +11,7 @@ import { getCurrentUser, logout } from "@/lib/auth";
 const TOOLS = [
   {
     key: "summarize",
+    route: "summary",
     label: "Summarize document",
     color: "rgba(99,102,241,.16)",
     iconColor: "#818cf8",
@@ -24,6 +25,7 @@ const TOOLS = [
   },
   {
     key: "flashcards",
+    route: "flashcards",
     label: "Generate flashcards",
     color: "rgba(16,185,129,.16)",
     iconColor: "#34d399",
@@ -36,6 +38,7 @@ const TOOLS = [
   },
   {
     key: "quiz",
+    route: "quiz",
     label: "Generate quiz",
     color: "rgba(245,158,11,.16)",
     iconColor: "#fbbf24",
@@ -48,6 +51,7 @@ const TOOLS = [
   },
   {
     key: "mindmap",
+    route: "mindmap",
     label: "Generate mind map",
     color: "rgba(59,130,246,.16)",
     iconColor: "#60a5fa",
@@ -68,7 +72,39 @@ const PALETTE = ["#8b5cf6", "#ec4899", "#06b6d4", "#22d3ee"];
 export function Sidebar({ docId }: { docId: string }) {
   const { state, dispatch, send, openFlashcards } = useDocContext();
   const router = useRouter();
+  const pathname = usePathname();
+
+  function activeTool(): string | null {
+    for (const t of TOOLS) {
+      if (pathname.endsWith(`/${t.route}`)) return t.key;
+    }
+    return null;
+  }
+  const activeToolKey = activeTool();
   const uploadInput = useRef<HTMLInputElement>(null);
+
+  // ── Right-click context menu ──────────────────────────────────────────────
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; docId: string } | null>(null);
+
+  const closeCtxMenu = useCallback(() => setCtxMenu(null), []);
+
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const handler = () => closeCtxMenu();
+    window.addEventListener("click", handler);
+    return () => window.removeEventListener("click", handler);
+  }, [ctxMenu, closeCtxMenu]);
+
+  async function handleDeleteDoc(id: string) {
+    closeCtxMenu();
+    try {
+      await api.deleteDocument(id);
+      dispatch({ type: "REMOVE_DOC", payload: id });
+      if (state.activeDocId === id) router.push("/");
+    } catch (err) {
+      console.error("Failed to delete document:", err);
+    }
+  }
 
   function handleTool(key: string) {
     if (key === "flashcards") { openFlashcards(); router.push(`/document/${docId}/flashcards`); return; }
@@ -172,25 +208,31 @@ export function Sidebar({ docId }: { docId: string }) {
           Study tools
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {TOOLS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => handleTool(t.key)}
-              style={{
-                display: "flex", alignItems: "center", gap: 11, width: "100%",
-                padding: "7px 8px", border: "none", background: "transparent",
-                borderRadius: 11, cursor: "pointer", fontFamily: "inherit",
-                fontSize: 13, fontWeight: 600, color: "#cbd5e1", textAlign: "left",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--mn-surface-2)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <span style={{ flexShrink: 0, width: 31, height: 31, borderRadius: 9, background: t.color, color: t.iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {t.icon}
-              </span>
-              {t.label}
-            </button>
-          ))}
+          {TOOLS.map((t) => {
+            const isActive = activeToolKey === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => handleTool(t.key)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 11, width: "100%",
+                  padding: "7px 8px", borderRadius: 11, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 13, fontWeight: 600, textAlign: "left",
+                  border: isActive ? `1px solid ${t.iconColor}33` : "1px solid transparent",
+                  background: isActive ? `${t.color}` : "transparent",
+                  color: isActive ? "#f1f5f9" : "#cbd5e1",
+                  transition: ".15s",
+                }}
+                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "var(--mn-surface-2)"; }}
+                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ flexShrink: 0, width: 31, height: 31, borderRadius: 9, background: t.color, color: t.iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {t.icon}
+                </span>
+                {t.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Docs heading */}
@@ -213,6 +255,10 @@ export function Sidebar({ docId }: { docId: string }) {
                 marginBottom: 6, cursor: "pointer", transition: ".15s",
               }}
               onClick={() => { dispatch({ type: "OPEN_DOC", payload: d.id }); router.push(`/document/${d.id}/chat`); }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setCtxMenu({ x: e.clientX, y: e.clientY, docId: d.id });
+              }}
             >
               <div style={{ width: 27, height: 32, borderRadius: 6, background: d.color + "26", border: `1px solid ${d.color}55`, flexShrink: 0, display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4 }}>
                 <div style={{ width: 11, height: 2, borderRadius: 2, background: d.color }} />
@@ -290,6 +336,56 @@ export function Sidebar({ docId }: { docId: string }) {
           </span>
         </label>
       </div>
+
+      {/* Right-click context menu */}
+      {ctxMenu && (
+        <div
+          style={{
+            position: "fixed",
+            top: ctxMenu.y,
+            left: ctxMenu.x,
+            zIndex: 9999,
+            background: "var(--mn-surface)",
+            border: "1px solid var(--mn-border-2)",
+            borderRadius: 10,
+            padding: "4px",
+            boxShadow: "0 8px 32px rgba(0,0,0,.45)",
+            minWidth: 160,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => handleDeleteDoc(ctxMenu.docId)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              width: "100%",
+              padding: "8px 12px",
+              border: "none",
+              background: "transparent",
+              borderRadius: 7,
+              color: "#f87171",
+              fontFamily: "inherit",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,.1)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3,5 15,5" />
+              <path d="M6 5V3.5h6V5" />
+              <path d="M4.5 5l.9 10.1a1 1 0 0 0 1 .9h5.2a1 1 0 0 0 1-.9L13.5 5" />
+              <line x1="7.5" y1="8.5" x2="7.5" y2="12.5" />
+              <line x1="10.5" y1="8.5" x2="10.5" y2="12.5" />
+            </svg>
+            Remove document
+          </button>
+        </div>
+      )}
 
       {/* User row */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderTop: "1px solid var(--mn-border)" }}>

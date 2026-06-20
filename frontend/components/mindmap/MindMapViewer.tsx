@@ -1,139 +1,252 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useDocContext } from "@/lib/document-context";
+import { useCallback, useMemo, useRef } from "react";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  Handle,
+  Position,
+} from "@xyflow/react";
+import type { Edge, Node, NodeProps } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import dagre from "dagre";
+import { toPng } from "html-to-image";
+import type { MindMapWithData } from "@/lib/types";
 
-const MAP_DATA = {
-  label: "Memory & Learning",
-  color: "#818cf8",
-  children: [
-    {
-      label: "Memory Systems",
-      color: "#10b981",
-      children: [
-        { label: "Sensory Memory", color: "#10b981", children: [] },
-        { label: "Working Memory\n~4 chunks · seconds", color: "#10b981", children: [] },
-        { label: "Long-Term Memory\nunlimited · decades", color: "#10b981", children: [] },
-      ],
-    },
-    {
-      label: "Consolidation",
-      color: "#3b82f6",
-      children: [
-        { label: "Slow-wave sleep\nhippocampal replay", color: "#3b82f6", children: [] },
-        { label: "REM sleep\nemotional & procedural", color: "#3b82f6", children: [] },
-        { label: "Active recall\nreconsolidation", color: "#3b82f6", children: [] },
-      ],
-    },
-    {
-      label: "Attention",
-      color: "#f59e0b",
-      children: [
-        { label: "Selective attention\nfilters input", color: "#f59e0b", children: [] },
-        { label: "Divided attention\ncognitive cost", color: "#f59e0b", children: [] },
-      ],
-    },
-    {
-      label: "Forgetting",
-      color: "#8b5cf6",
-      children: [
-        { label: "Forgetting curve", color: "#8b5cf6", children: [] },
-        { label: "Spaced repetition\nresets curve", color: "#8b5cf6", children: [] },
-      ],
-    },
-  ],
-};
+const NODE_W = 180;
+const NODE_H = 56;
 
-interface Node {
-  label: string;
-  color: string;
-  children: Node[];
-}
+type NData = { label: string; description: string | null; node_type: "root" | "branch" | "leaf" };
 
-function NodeBubble({ node, depth }: { node: Node; depth: number }) {
+function MapNode({ data }: NodeProps) {
+  const { label, description, node_type } = data as NData;
+
+  const styles: Record<string, React.CSSProperties> = {
+    root: {
+      background: "var(--mn-accent-grad)",
+      border: "none",
+      color: "#fff",
+      fontSize: 14,
+      fontWeight: 800,
+      boxShadow: "0 4px 18px var(--mn-accent-ring)",
+    },
+    branch: {
+      background: "rgba(99,102,241,.15)",
+      border: "1.5px solid rgba(99,102,241,.45)",
+      color: "#a5b4fc",
+      fontSize: 13,
+      fontWeight: 700,
+    },
+    leaf: {
+      background: "var(--mn-surface-2)",
+      border: "1.5px solid var(--mn-border-2)",
+      color: "#cbd5e1",
+      fontSize: 12,
+      fontWeight: 600,
+    },
+  };
+
+  const s = styles[node_type] ?? styles.leaf;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0 }}>
-      <div
-        style={{
-          padding: depth === 0 ? "12px 22px" : depth === 1 ? "9px 16px" : "7px 13px",
-          borderRadius: 12,
-          background: depth === 0 ? "var(--mn-accent-grad)" : node.color + "26",
-          border: `1.5px solid ${node.color}66`,
-          color: depth === 0 ? "#fff" : node.color,
-          fontSize: depth === 0 ? 15 : depth === 1 ? 13.5 : 12,
-          fontWeight: depth === 0 ? 800 : 700,
-          textAlign: "center",
-          whiteSpace: "pre-line",
-          lineHeight: 1.3,
-          boxShadow: depth === 0 ? "0 6px 20px var(--mn-accent-ring)" : "none",
-          minWidth: depth === 2 ? 120 : undefined,
-        }}
-      >
-        {node.label}
-      </div>
-      {node.children.length > 0 && (
-        <>
-          <div style={{ width: 1.5, height: 18, background: node.color + "55" }} />
-          <div style={{ display: "flex", gap: 16, alignItems: "flex-start", position: "relative" }}>
-            {/* Horizontal line spanning children */}
-            {node.children.length > 1 && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: "calc(50% / " + node.children.length + ")",
-                  right: "calc(50% / " + node.children.length + ")",
-                  height: 1.5,
-                  background: node.color + "44",
-                }}
-              />
-            )}
-            {node.children.map((child, i) => (
-              <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <div style={{ width: 1.5, height: 18, background: child.color + "55" }} />
-                <NodeBubble node={child} depth={depth + 1} />
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+    <div
+      title={description ?? undefined}
+      style={{
+        width: NODE_W,
+        minHeight: NODE_H,
+        padding: "10px 14px",
+        borderRadius: 12,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        lineHeight: 1.3,
+        cursor: description ? "help" : "default",
+        ...s,
+      }}
+    >
+      <Handle type="target" position={Position.Top} style={{ opacity: 0, pointerEvents: "none" }} />
+      {label}
+      <Handle type="source" position={Position.Bottom} style={{ opacity: 0, pointerEvents: "none" }} />
     </div>
   );
 }
 
-export function MindMapViewer({ docId }: { docId: string }) {
-  const router = useRouter();
-  const { state } = useDocContext();
-  const contextDocs = state.docs.filter((d) => d.inContext);
+const NODE_TYPES = { mapNode: MapNode };
+
+function buildGraph(mm: MindMapWithData): { nodes: Node[]; edges: Edge[] } {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const g = new (dagre as any).graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: "TB", ranksep: 90, nodesep: 55 });
+
+  mm.nodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
+  mm.edges.forEach((e) => g.setEdge(e.source_node_id, e.target_node_id));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (dagre as any).layout(g);
+
+  const nodes: Node[] = mm.nodes.map((n) => {
+    const pos = g.node(n.id) as { x: number; y: number };
+    return {
+      id: n.id,
+      type: "mapNode",
+      position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 },
+      data: { label: n.label, description: n.description, node_type: n.node_type } as NData,
+    };
+  });
+
+  const edges: Edge[] = mm.edges.map((e) => ({
+    id: e.id,
+    source: e.source_node_id,
+    target: e.target_node_id,
+    label: e.relationship_label,
+    type: "smoothstep",
+    style: { stroke: "#334155", strokeWidth: 1.5 },
+    labelStyle: { fill: "#64748b", fontSize: 10, fontFamily: "inherit" },
+    labelBgStyle: { fill: "transparent" },
+    labelBgPadding: [2, 4] as [number, number],
+  }));
+
+  return { nodes, edges };
+}
+
+interface Props {
+  mindmap: MindMapWithData;
+  onBack?: () => void;
+}
+
+export function MindMapViewer({ mindmap, onBack }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { nodes, edges } = useMemo(() => buildGraph(mindmap), [mindmap]);
+
+  const handleDownload = useCallback(async () => {
+    if (!containerRef.current) return;
+    try {
+      const dataUrl = await toPng(containerRef.current, {
+        cacheBust: true,
+        backgroundColor: "#0f172a",
+        pixelRatio: 2,
+      });
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `${(mindmap.title ?? "mindmap").replace(/\s+/g, "-")}.png`;
+      a.click();
+    } catch (e) {
+      console.error("PNG export failed:", e);
+    }
+  }, [mindmap.title]);
 
   return (
-    <main
-      style={{
-        flex: 1, display: "flex", flexDirection: "column", minWidth: 0,
-        background: "var(--mn-surface)", border: "1px solid var(--mn-border)",
-        borderRadius: 18, overflow: "hidden",
-      }}
-    >
-      {/* Header */}
-      <div style={{ height: 60, flexShrink: 0, borderBottom: "1px solid var(--mn-border)", display: "flex", alignItems: "center", gap: 12, padding: "0 18px" }}>
-        <button
-          onClick={() => router.push(`/document/${docId}/chat`)}
-          style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 10, border: "1px solid var(--mn-border-2)", background: "var(--mn-surface-2)", color: "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
-        >
-          <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4l-5 5 5 5" /></svg>
-        </button>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#f8fafc" }}>Mind Map</div>
-          <div style={{ fontSize: 11.5, color: "var(--mn-text-3)" }}>
-            {contextDocs.map((d) => d.short).join(", ")}
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, gap: 10 }}>
+      {/* Toolbar */}
+      <div
+        style={{
+          flexShrink: 0, display: "flex", alignItems: "center", gap: 10,
+          background: "var(--mn-surface)", border: "1px solid var(--mn-border)",
+          borderRadius: 14, padding: "10px 14px",
+        }}
+      >
+        {onBack && (
+          <button
+            onClick={onBack}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "5px 12px", borderRadius: 8,
+              border: "1px solid var(--mn-border-2)",
+              background: "transparent", color: "var(--mn-text-3)",
+              fontFamily: "inherit", fontSize: 12, fontWeight: 600,
+              cursor: "pointer", transition: ".15s", flexShrink: 0,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--mn-surface-2)"; e.currentTarget.style.color = "#cbd5e1"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--mn-text-3)"; }}
+          >
+            <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 2L5 7l4 5" />
+            </svg>
+            Back
+          </button>
+        )}
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {mindmap.title ?? "Mind Map"}
           </div>
+          {mindmap.scope_description && (
+            <div style={{ fontSize: 11.5, color: "var(--mn-text-3)", marginTop: 1 }}>
+              {mindmap.scope_description} · {mindmap.node_count} nodes
+            </div>
+          )}
         </div>
+
+        <button
+          onClick={handleDownload}
+          style={{
+            display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+            padding: "6px 14px", borderRadius: 9,
+            border: "1px solid var(--mn-border-2)", background: "transparent",
+            color: "#94a3b8", fontFamily: "inherit", fontSize: 12, fontWeight: 600,
+            cursor: "pointer", transition: ".15s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--mn-surface-2)"; e.currentTarget.style.color = "#cbd5e1"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; }}
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 2v9M5 8l3 3 3-3"/><path d="M2 13h12"/>
+          </svg>
+          Download PNG
+        </button>
       </div>
 
-      {/* Map canvas */}
-      <div style={{ flex: 1, overflow: "auto", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "32px 24px 48px" }}>
-        <NodeBubble node={MAP_DATA} depth={0} />
+      {/* React Flow canvas */}
+      <div
+        ref={containerRef}
+        style={{
+          flex: 1, minHeight: 0, borderRadius: 16, overflow: "hidden",
+          border: "1px solid var(--mn-border)",
+        }}
+      >
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={NODE_TYPES}
+          fitView
+          fitViewOptions={{ padding: 0.18 }}
+          proOptions={{ hideAttribution: true }}
+          style={{ background: "var(--mn-surface)" }}
+          nodesDraggable
+          nodesConnectable={false}
+          elementsSelectable={false}
+        >
+          <Background color="#1e293b" gap={24} />
+          <Controls />
+          <style>{`
+            .react-flow__controls {
+              background: var(--mn-surface-2) !important;
+              border: 1px solid var(--mn-border-2) !important;
+              border-radius: 10px !important;
+              box-shadow: none !important;
+            }
+            .react-flow__controls-button {
+              background: transparent !important;
+              border-bottom: 1px solid var(--mn-border-2) !important;
+              color: #94a3b8 !important;
+              fill: #94a3b8 !important;
+            }
+            .react-flow__controls-button:last-child {
+              border-bottom: none !important;
+            }
+            .react-flow__controls-button:hover {
+              background: var(--mn-surface) !important;
+              color: #e2e8f0 !important;
+              fill: #e2e8f0 !important;
+            }
+            .react-flow__controls-button svg {
+              fill: inherit !important;
+            }
+          `}</style>
+        </ReactFlow>
       </div>
-    </main>
+    </div>
   );
 }

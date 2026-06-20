@@ -1,4 +1,4 @@
-import type { Flashcard, MindNestDocument, QuizQuestion } from "./types";
+import type { Flashcard, MindNestDocument } from "./types";
 
 export function seedDocs(): MindNestDocument[] {
   return [
@@ -229,68 +229,3 @@ export function seedFlashcards(): Flashcard[] {
   ];
 }
 
-export function seedQuiz(): QuizQuestion[] {
-  return [
-    {
-      id: "q1",
-      question:
-        "Which sleep stage is most associated with consolidating facts and events?",
-      options: [
-        "REM sleep",
-        "Slow-wave (deep) sleep",
-        "Stage 1 light sleep",
-        "Stage 2 sleep",
-      ],
-      correct: 1,
-      explanation:
-        "Slow-wave sleep drives declarative memory consolidation via hippocampal replay.",
-    },
-    {
-      id: "q2",
-      question: "What is the approximate capacity of working memory?",
-      options: [
-        "About 7 ± 2 items",
-        "About 4 chunks",
-        "Effectively unlimited",
-        "About 10 items",
-      ],
-      correct: 1,
-      explanation:
-        "Modern research places working memory capacity at roughly four chunks, not the older estimate of 7 ± 2.",
-    },
-    {
-      id: "q3",
-      question:
-        "A single poor night of sleep can reduce hippocampal encoding ability by approximately:",
-      options: ["10%", "25%", "40%", "60%"],
-      correct: 2,
-      explanation: "Walker (2021) reports roughly a 40% impairment in new encoding after one bad night.",
-    },
-    {
-      id: "q4",
-      question: "Why does spaced repetition work?",
-      options: [
-        "It increases sleep quality",
-        "It reactivates memories just as they begin to fade",
-        "It reduces working memory load",
-        "It bypasses the hippocampus",
-      ],
-      correct: 1,
-      explanation:
-        "Each spaced review resets the forgetting curve by reconsolidating the memory.",
-    },
-    {
-      id: "q5",
-      question: "What does the cocktail-party effect demonstrate?",
-      options: [
-        "We encode everything around us equally",
-        "Divided attention has no cost",
-        "Selective attention filters aggressively but salient cues break through",
-        "Long-term memory is unlimited",
-      ],
-      correct: 2,
-      explanation:
-        "The effect shows that while we filter most stimuli, personally salient signals (like our name) can penetrate the attentional filter.",
-    },
-  ];
-}

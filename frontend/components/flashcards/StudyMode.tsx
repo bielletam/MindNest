@@ -21,6 +21,13 @@ function fisherYates<T>(arr: T[]): T[] {
   return a;
 }
 
+interface LastAction {
+  card: BackendFlashcard;
+  previousStatus: FlashcardStatus;
+  indexInQueue: number;
+  wasRoundEnded: boolean;
+}
+
 export function StudyMode({ flashcards, onStatusChange, onRestart, onBrowseOther }: Props) {
   const [queue, setQueue] = useState<BackendFlashcard[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
@@ -28,6 +35,7 @@ export function StudyMode({ flashcards, onStatusChange, onRestart, onBrowseOther
   const [completed, setCompleted] = useState(false);
   const [roundEnded, setRoundEnded] = useState(false);
   const [apiError, setApiError] = useState("");
+  const [lastAction, setLastAction] = useState<LastAction | null>(null);
 
   // Tracks status changes applied in the current session so round-end
   // recomputation sees fresh data even if the parent re-render hasn't landed yet.
@@ -73,6 +81,9 @@ export function StudyMode({ flashcards, onStatusChange, onRestart, onBrowseOther
 
   function handleMark(card: BackendFlashcard, newStatus: FlashcardStatus) {
     setApiError("");
+
+    // Snapshot for undo — capture previous status BEFORE overwriting it.
+    const previousStatus = effectiveStatus(card);
     localStatuses.current.set(card.id, newStatus);
 
     api.updateFlashcardStatus(card.id, newStatus).catch((err: Error) => {
@@ -83,12 +94,39 @@ export function StudyMode({ flashcards, onStatusChange, onRestart, onBrowseOther
     onStatusChange(card.id, newStatus);
 
     const nextIndex = queueIndex + 1;
-    if (nextIndex < queue.length) {
+    const isLastCard = nextIndex >= queue.length;
+
+    // Save snapshot after we know whether this card ended the round.
+    setLastAction({ card, previousStatus, indexInQueue: queueIndex, wasRoundEnded: isLastCard });
+
+    if (!isLastCard) {
       setQueueIndex(nextIndex);
       setFlipped(false);
     } else {
       handleRoundEnd();
     }
+  }
+
+  function handleUndo() {
+    if (!lastAction) return;
+    const { card, previousStatus, indexInQueue, wasRoundEnded } = lastAction;
+
+    // Revert local tracking so queue recomputation sees the old status.
+    localStatuses.current.set(card.id, previousStatus);
+
+    // Revert in DB (fire-and-forget).
+    api.updateFlashcardStatus(card.id, previousStatus).catch(console.error);
+
+    // Revert parent list so browse mode is consistent.
+    onStatusChange(card.id, previousStatus);
+
+    // Go back to the card that was just rated.
+    setQueueIndex(indexInQueue);
+    setFlipped(false);
+    setLastAction(null);
+
+    // If we were on the round-end screen, dismiss it.
+    if (wasRoundEnded || roundEnded) setRoundEnded(false);
   }
 
   // ── Completion screen (all cards known) ──────────────────────────────────────
@@ -159,6 +197,34 @@ export function StudyMode({ flashcards, onStatusChange, onRestart, onBrowseOther
 
         {/* Choices */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 320 }}>
+          {lastAction && (
+            <button
+              onClick={handleUndo}
+              style={{
+                width: "100%",
+                padding: "10px 0",
+                borderRadius: 13,
+                border: "1px solid var(--mn-border-2)",
+                background: "transparent",
+                color: "var(--mn-text-3)",
+                fontFamily: "inherit",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 7,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--mn-surface-2)"; e.currentTarget.style.color = "#cbd5e1"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--mn-text-3)"; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9a6 6 0 1 0 1.5-3.9" /><polyline points="3 4 3 9 8 9" />
+              </svg>
+              Undo last rating
+            </button>
+          )}
           <button
             onClick={continueWithStillLearning}
             style={{
@@ -239,9 +305,40 @@ export function StudyMode({ flashcards, onStatusChange, onRestart, onBrowseOther
           <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--mn-text-3)" }}>
             Card {position} of {total}
           </span>
-          {apiError && (
-            <span style={{ fontSize: 12, color: "#f87171" }}>{apiError}</span>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {apiError && (
+              <span style={{ fontSize: 12, color: "#f87171" }}>{apiError}</span>
+            )}
+            {lastAction && (
+              <button
+                onClick={handleUndo}
+                title="Undo last rating"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "4px 11px",
+                  borderRadius: 8,
+                  border: "1px solid var(--mn-border-2)",
+                  background: "transparent",
+                  color: "var(--mn-text-3)",
+                  fontFamily: "inherit",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: ".15s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--mn-surface-2)"; e.currentTarget.style.color = "#cbd5e1"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--mn-text-3)"; }}
+              >
+                <svg width="12" height="12" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 9a6 6 0 1 0 1.5-3.9" />
+                  <polyline points="3 4 3 9 8 9" />
+                </svg>
+                Undo
+              </button>
+            )}
+          </div>
         </div>
         <div style={{ height: 4, background: "var(--mn-surface-2)", borderRadius: 4, overflow: "hidden" }}>
           <div
