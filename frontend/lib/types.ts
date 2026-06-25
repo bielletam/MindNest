@@ -148,6 +148,26 @@ export interface PageContent {
   total_pages: number;
 }
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  document_ids: string[];
+  message_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessageRecord {
+  id: string;
+  session_id: string;
+  role: "user" | "assistant";
+  content: string;
+  sources: Source[] | null;
+  created_at: string;
+}
+
+export type ChatSessionWithMessages = ChatSession & { messages: ChatMessageRecord[] };
+
 export interface BackendDocumentOut {
   id: string;
   filename: string;

@@ -1,12 +1,40 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useDocContext } from "@/lib/document-context";
 import { Logo } from "@/components/ui/Logo";
 import { api } from "@/lib/api";
-import type { MindNestDocument } from "@/lib/types";
+import type { ChatSession, MindNestDocument } from "@/lib/types";
 import { getCurrentUser, logout } from "@/lib/auth";
+
+const SESSIONS_VISIBLE_LIMIT = 7;
+
+function dateGroupLabel(updatedAt: string): string {
+  const d = new Date(updatedAt);
+  const now = new Date();
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const diffDays = Math.floor((startOfDay(now) - startOfDay(d)) / 86_400_000);
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays <= 6) return "Earlier this week";
+  return "Earlier";
+}
+
+const SESSION_GROUP_ORDER = ["Today", "Yesterday", "Earlier this week", "Earlier"];
+
+function relativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay === 1) return "Yesterday";
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 const TOOLS = [
   {
@@ -70,9 +98,11 @@ const TOOLS = [
 const PALETTE = ["#8b5cf6", "#ec4899", "#06b6d4", "#22d3ee"];
 
 export function Sidebar({ docId }: { docId: string }) {
-  const { state, dispatch, send, openFlashcards } = useDocContext();
+  const { state, dispatch, openFlashcards } = useDocContext();
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeSessionId = searchParams.get("session");
 
   function activeTool(): string | null {
     for (const t of TOOLS) {
@@ -157,6 +187,60 @@ export function Sidebar({ docId }: { docId: string }) {
     }
   }
 
+  // ── Recent chats ───────────────────────────────────────────────────────────
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sessionSearch, setSessionSearch] = useState("");
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [showAllSessions, setShowAllSessions] = useState(false);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function refetchSessions(search?: string) {
+    setLoadingSessions(true);
+    api
+      .fetchSessions(search || undefined)
+      .then(setSessions)
+      .catch(() => setSessions([]))
+      .finally(() => setLoadingSessions(false));
+  }
+
+  // Initial load, and refresh whenever the active session changes (covers a
+  // brand-new session appearing, or message_count changing after a switch).
+  useEffect(() => {
+    refetchSessions(sessionSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => refetchSessions(sessionSearch), 300);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [sessionSearch]);
+
+  function handleSelectSession(session: ChatSession) {
+    const targetDocId = docId || session.document_ids[0] || "";
+    router.push(`/document/${targetDocId}/chat?session=${session.id}`);
+  }
+
+  async function handleDeleteSession(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    try {
+      await api.deleteSession(id);
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      if (id === activeSessionId && docId) router.push(`/document/${docId}/chat`);
+    } catch (err) {
+      console.error("Failed to delete chat session:", err);
+    }
+  }
+
+  const visibleSessions = showAllSessions ? sessions : sessions.slice(0, SESSIONS_VISIBLE_LIMIT);
+  const groupedSessions = new Map<string, ChatSession[]>();
+  for (const s of visibleSessions) {
+    const label = dateGroupLabel(s.updated_at);
+    const list = groupedSessions.get(label) ?? [];
+    list.push(s);
+    groupedSessions.set(label, list);
+  }
+
   const [displayName, setDisplayName] = useState("Student");
   const [userInitials, setUserInitials] = useState("ST");
   useEffect(() => {
@@ -186,7 +270,7 @@ export function Sidebar({ docId }: { docId: string }) {
       {/* New chat */}
       <div style={{ padding: "4px 14px 12px" }}>
         <button
-          onClick={() => { dispatch({ type: "NEW_CHAT" }); router.push(`/document/${docId}/chat`); }}
+          onClick={() => router.push(`/document/${docId}/chat`)}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             width: "100%", padding: 12, border: "none", borderRadius: 13,
@@ -202,9 +286,76 @@ export function Sidebar({ docId }: { docId: string }) {
         </button>
       </div>
 
-      {/* Study tools + docs */}
+      {/* Recent chats + Study tools + Documents — one unified scroll region */}
       <div style={{ flex: 1, overflow: "auto", padding: "2px 14px 14px" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".09em", textTransform: "uppercase", color: "var(--mn-text-3)", padding: "10px 6px 8px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 6px 8px" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".09em", textTransform: "uppercase", color: "var(--mn-text-3)" }}>Recent chats</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#56627a" }}>{sessions.length}</span>
+        </div>
+
+        <div style={{ position: "relative", marginBottom: 8 }}>
+          <svg width="13" height="13" viewBox="0 0 18 18" fill="none" stroke="var(--mn-text-3)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }}>
+            <circle cx="8" cy="8" r="5.5" /><line x1="12.2" y1="12.2" x2="16" y2="16" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search chats…"
+            value={sessionSearch}
+            onChange={(e) => setSessionSearch(e.target.value)}
+            style={{
+              width: "100%", boxSizing: "border-box", background: "var(--mn-surface-2)",
+              border: "1px solid var(--mn-border-2)", borderRadius: 10,
+              padding: "7px 10px 7px 30px", color: "#e2e8f0", fontFamily: "inherit",
+              fontSize: 12.5, outline: "none",
+            }}
+          />
+        </div>
+
+        {loadingSessions && (
+          <div style={{ textAlign: "center", padding: "14px 0", color: "var(--mn-text-3)", fontSize: 12 }}>
+            Loading…
+          </div>
+        )}
+
+        {!loadingSessions && sessions.length === 0 && (
+          <div style={{ textAlign: "center", padding: "14px 10px", color: "var(--mn-text-3)", fontSize: 12 }}>
+            {sessionSearch ? "No chats match your search." : "No chats yet."}
+          </div>
+        )}
+
+        {!loadingSessions && SESSION_GROUP_ORDER.filter((g) => groupedSessions.has(g)).map((groupLabel) => (
+          <div key={groupLabel} style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--mn-text-3)", padding: "6px 6px 4px" }}>
+              {groupLabel}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {groupedSessions.get(groupLabel)!.map((s) => (
+                <SessionRow
+                  key={s.id}
+                  session={s}
+                  isActive={s.id === activeSessionId}
+                  onSelect={() => handleSelectSession(s)}
+                  onDelete={(e) => handleDeleteSession(s.id, e)}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {!loadingSessions && sessions.length > SESSIONS_VISIBLE_LIMIT && (
+          <button
+            onClick={() => setShowAllSessions((v) => !v)}
+            style={{
+              width: "100%", textAlign: "center", padding: "6px 6px 2px",
+              border: "none", background: "transparent", color: "var(--mn-accent)",
+              fontFamily: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer",
+            }}
+          >
+            {showAllSessions ? "Show less" : `Show all (${sessions.length})`}
+          </button>
+        )}
+
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".09em", textTransform: "uppercase", color: "var(--mn-text-3)", padding: "18px 6px 8px" }}>
           Study tools
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -394,7 +545,6 @@ export function Sidebar({ docId }: { docId: string }) {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#e2e8f0" }}>{displayName}</div>
-          <div style={{ fontSize: 11, color: "var(--mn-text-3)" }}>Free plan · {state.docs.length} docs</div>
         </div>
         <button
           title="Sign out"
@@ -416,5 +566,63 @@ export function Sidebar({ docId }: { docId: string }) {
         </button>
       </div>
     </aside>
+  );
+}
+
+// ── Recent chat row ────────────────────────────────────────────────────────────
+
+function SessionRow({
+  session, isActive, onSelect, onDelete,
+}: {
+  session: ChatSession;
+  isActive: boolean;
+  onSelect: () => void;
+  onDelete: (e: React.MouseEvent) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      onClick={onSelect}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "8px 8px", borderRadius: 10, cursor: "pointer",
+        background: isActive ? "var(--mn-accent-soft)" : hovered ? "var(--mn-surface-2)" : "transparent",
+        border: `1.5px solid ${isActive ? "var(--mn-accent-mid)" : "transparent"}`,
+        transition: ".12s",
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#e2e8f0" }}>
+          {session.title}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--mn-text-3)", marginTop: 2 }}>
+          {relativeTime(session.updated_at)} · {session.message_count} message{session.message_count !== 1 ? "s" : ""}
+        </div>
+      </div>
+      {hovered && (
+        <button
+          onClick={onDelete}
+          title="Delete chat"
+          style={{
+            flexShrink: 0, width: 22, height: 22, borderRadius: 7,
+            border: "none", background: "transparent", color: "var(--mn-text-3)",
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,.12)"; e.currentTarget.style.color = "#f87171"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--mn-text-3)"; }}
+        >
+          <svg width="12" height="12" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3,5 15,5" />
+            <path d="M6 5V3.5h6V5" />
+            <path d="M4.5 5l.9 10.1a1 1 0 0 0 1 .9h5.2a1 1 0 0 0 1-.9L13.5 5" />
+            <line x1="7.5" y1="8.5" x2="7.5" y2="12.5" />
+            <line x1="10.5" y1="8.5" x2="10.5" y2="12.5" />
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }

@@ -1,10 +1,10 @@
 import { DocumentShell } from "@/components/DocumentShell";
-import { ChatWindow } from "@/components/chat/ChatWindow";
+import { ChatPageView } from "@/components/chat/ChatPageView";
 
 export default function DocumentHomePage() {
   return (
     <DocumentShell docId="">
-      <ChatWindow docId="" />
+      <ChatPageView docId="" />
     </DocumentShell>
   );
 }

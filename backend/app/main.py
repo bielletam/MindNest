@@ -16,6 +16,7 @@ import app.models.summary  # noqa: F401
 import app.models.flashcard  # noqa: F401
 import app.models.quiz  # noqa: F401
 import app.models.mindmap  # noqa: F401
+import app.models.chat  # noqa: F401
 
 
 @asynccontextmanager

@@ -2,6 +2,9 @@ import type {
   BackendChatResponse,
   BackendDocumentOut,
   BackendFlashcard,
+  ChatMessageRecord,
+  ChatSession,
+  ChatSessionWithMessages,
   FlashcardStatus,
   GenerateFlashcardsRequest,
   GenerateMindMapRequest,
@@ -199,6 +202,37 @@ export const api = {
 
   deleteMindMap: async (mindmapId: string): Promise<void> => {
     const res = await fetch(`${BASE}/api/v1/mindmaps/${mindmapId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => res.statusText);
+      throw new Error(`API ${res.status}: ${msg}`);
+    }
+  },
+
+  createChatSession: (documentIds: string[], firstMessage: string): Promise<ChatSessionWithMessages> =>
+    request<ChatSessionWithMessages>("/api/v1/chat/sessions", {
+      method: "POST",
+      body: JSON.stringify({ document_ids: documentIds, first_message: firstMessage }),
+    }),
+
+  sendMessage: (sessionId: string, query: string): Promise<ChatMessageRecord> =>
+    request<ChatMessageRecord>(`/api/v1/chat/sessions/${sessionId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ query }),
+    }),
+
+  fetchSessions: (search?: string): Promise<ChatSession[]> =>
+    request<ChatSession[]>(
+      `/api/v1/chat/sessions${search ? `?search=${encodeURIComponent(search)}` : ""}`
+    ),
+
+  fetchSession: (sessionId: string): Promise<ChatSessionWithMessages> =>
+    request<ChatSessionWithMessages>(`/api/v1/chat/sessions/${sessionId}`),
+
+  deleteSession: async (sessionId: string): Promise<void> => {
+    const res = await fetch(`${BASE}/api/v1/chat/sessions/${sessionId}`, {
       method: "DELETE",
       credentials: "include",
     });

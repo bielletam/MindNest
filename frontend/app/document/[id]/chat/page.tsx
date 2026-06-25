@@ -1,6 +1,6 @@
-import { ChatWindow } from "@/components/chat/ChatWindow";
+import { ChatPageView } from "@/components/chat/ChatPageView";
 
 export default async function ChatPage(props: PageProps<"/document/[id]/chat">) {
   const { id } = await props.params;
-  return <ChatWindow docId={id} />;
+  return <ChatPageView docId={id} />;
 }

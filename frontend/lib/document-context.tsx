@@ -6,10 +6,9 @@ import {
   useContext,
   useEffect,
   useReducer,
-  useRef,
   type ReactNode,
 } from "react";
-import type { Citation, Flashcard, Message, MindNestDocument } from "./types";
+import type { Citation, Flashcard, MindNestDocument } from "./types";
 import { seedFlashcards } from "./seed-data";
 import { api } from "./api";
 
@@ -18,9 +17,6 @@ import { api } from "./api";
 interface DocState {
   docs: MindNestDocument[];
   activeDocId: string;
-  messages: Message[];
-  input: string;
-  thinking: boolean;
   showViewer: boolean;
   viewerPage: number;
   flashHi: string | null;
@@ -35,11 +31,6 @@ interface DocState {
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 type Action =
-  | { type: "SET_INPUT"; payload: string }
-  | { type: "SEND_MESSAGE"; payload: { userMsg: Message; aiMsg: Message } }
-  | { type: "UPDATE_AI_TEXT"; payload: { id: string; text: string } }
-  | { type: "FINISH_AI_MSG"; payload: { id: string; text: string; cites: Citation[] } }
-  | { type: "NEW_CHAT" }
   | { type: "OPEN_DOC"; payload: string }
   | { type: "TOGGLE_CONTEXT"; payload: string }
   | { type: "SET_VIEWER_PAGE"; payload: number }
@@ -57,55 +48,13 @@ type Action =
   | { type: "STUDY_FLIP" }
   | { type: "STUDY_PREV" }
   | { type: "STUDY_NEXT" }
-  | { type: "SET_THINKING"; payload: boolean }
   | { type: "SET_DOCS"; payload: MindNestDocument[] }
   | { type: "REMOVE_DOC"; payload: string };
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
 
-let _msgId = 0;
-export function genId() {
-  return "m" + ++_msgId;
-}
-
 function reducer(state: DocState, action: Action): DocState {
   switch (action.type) {
-    case "SET_INPUT":
-      return { ...state, input: action.payload };
-
-    case "SEND_MESSAGE":
-      return {
-        ...state,
-        messages: [...state.messages, action.payload.userMsg, action.payload.aiMsg],
-        input: "",
-        thinking: true,
-      };
-
-    case "UPDATE_AI_TEXT":
-      return {
-        ...state,
-        messages: state.messages.map((m) =>
-          m.id === action.payload.id ? { ...m, text: action.payload.text } : m
-        ),
-      };
-
-    case "FINISH_AI_MSG":
-      return {
-        ...state,
-        thinking: false,
-        messages: state.messages.map((m) =>
-          m.id === action.payload.id
-            ? { ...m, text: action.payload.text, streaming: false, cites: action.payload.cites }
-            : m
-        ),
-      };
-
-    case "SET_THINKING":
-      return { ...state, thinking: action.payload };
-
-    case "NEW_CHAT":
-      return { ...state, messages: [], input: "", thinking: false };
-
     case "OPEN_DOC":
       return { ...state, activeDocId: action.payload, showViewer: true, viewerPage: 1, flashHi: null };
 
@@ -203,12 +152,9 @@ function reducer(state: DocState, action: Action): DocState {
 interface DocContextValue {
   state: DocState;
   activeDoc: MindNestDocument | undefined;
-  send: (text?: string) => void;
   openCite: (c: Citation) => void;
   openFlashcards: () => void;
   dispatch: React.Dispatch<Action>;
-  streamTimer: React.MutableRefObject<ReturnType<typeof setInterval> | null>;
-  thinkTimer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
 }
 
 const DocContext = createContext<DocContextValue | null>(null);
@@ -231,9 +177,6 @@ export function DocumentProvider({
   const [state, dispatch] = useReducer(reducer, {
     docs: [],
     activeDocId: initialActiveDocId ?? "",
-    messages: [],
-    input: "",
-    thinking: false,
     showViewer: true,
     viewerPage: 1,
     flashHi: null,
@@ -244,9 +187,6 @@ export function DocumentProvider({
     studyIndex: 0,
     studyFlipped: false,
   });
-
-  const streamTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const thinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Hydrate docs from backend on mount so they survive page refreshes.
   useEffect(() => {
@@ -276,64 +216,6 @@ export function DocumentProvider({
 
   const activeDoc = state.docs.find((d) => d.id === state.activeDocId);
 
-  const send = useCallback(
-    (raw?: string) => {
-      const text = (raw ?? state.input).trim();
-      if (!text || state.thinking) return;
-
-      const contextDocIds = state.docs.filter((d) => d.inContext).map((d) => d.id);
-
-      const uId = genId();
-      const aId = genId();
-
-      dispatch({
-        type: "SEND_MESSAGE",
-        payload: {
-          userMsg: { id: uId, role: "user", text },
-          aiMsg: { id: aId, role: "ai", text: "", streaming: true },
-        },
-      });
-
-      if (contextDocIds.length === 0) {
-        dispatch({
-          type: "FINISH_AI_MSG",
-          payload: {
-            id: aId,
-            text: "Please add at least one document to the chat context (use the checkboxes in the sidebar).",
-            cites: [],
-          },
-        });
-        return;
-      }
-
-      api
-        .chat({ query: text, document_ids: contextDocIds })
-        .then((resp) => {
-          const cites: Citation[] = resp.sources.map((s) => ({
-            doc: s.document_id,
-            page: s.page_number,
-            hi: "",
-            snippet: "",
-          }));
-          dispatch({
-            type: "FINISH_AI_MSG",
-            payload: { id: aId, text: resp.answer, cites },
-          });
-        })
-        .catch(() => {
-          dispatch({
-            type: "FINISH_AI_MSG",
-            payload: {
-              id: aId,
-              text: "Something went wrong reaching the server. Make sure the backend is running.",
-              cites: [],
-            },
-          });
-        });
-    },
-    [state.input, state.thinking, state.docs]
-  );
-
   const openCite = useCallback(
     (c: Citation) => {
       if (c.doc !== state.activeDocId || !state.showViewer) {
@@ -357,9 +239,7 @@ export function DocumentProvider({
   }, []);
 
   return (
-    <DocContext.Provider
-      value={{ state, activeDoc, send, openCite, openFlashcards, dispatch, streamTimer, thinkTimer }}
-    >
+    <DocContext.Provider value={{ state, activeDoc, openCite, openFlashcards, dispatch }}>
       {children}
     </DocContext.Provider>
   );
