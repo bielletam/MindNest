@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
-from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, UserOut
@@ -11,7 +10,6 @@ router = APIRouter()
 
 _COOKIE = "mn_token"
 _MAX_AGE = 60 * 60 * 24 * 7  # 7 days
-_IS_PROD = settings.ENVIRONMENT == "production"
 
 
 def _issue_cookie(response: Response, user_id: str) -> None:
@@ -19,10 +17,10 @@ def _issue_cookie(response: Response, user_id: str) -> None:
         key=_COOKIE,
         value=create_access_token(user_id),
         httponly=True,
-        samesite="none" if _IS_PROD else "lax",
-        secure=_IS_PROD,
+        samesite="lax",
         max_age=_MAX_AGE,
         path="/",
+        # secure=True  ← enable when deploying over HTTPS
     )
 
 
