@@ -5,7 +5,7 @@ from groq import Groq
 
 from app.core.config import settings
 
-_MODEL = "llama-3.1-8b-instant"
+_MODEL = "openai/gpt-oss-20b"
 
 
 def _chat(messages: list[dict], max_tokens: int = 1024) -> str:

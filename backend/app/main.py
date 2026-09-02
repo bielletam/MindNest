@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.routes import auth, chat, documents, flashcards, mindmap, quiz, summarize, upload
+from app.core.config import settings
 from app.db.session import Base, engine
 
 # Register all models so create_all sees every table.
@@ -42,7 +43,7 @@ app = FastAPI(title="MindNest API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=settings.allowed_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
