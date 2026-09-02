@@ -2,14 +2,6 @@
 
 # MindNest
 
-![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?logo=fastapi&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
-![ChromaDB](https://img.shields.io/badge/ChromaDB-vector%20store-orange)
-![Groq](https://img.shields.io/badge/Groq-LLM%20inference-F55036?logo=groq&logoColor=white)
-![TailwindCSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
-
 </div>
 
 > Upload a PDF and ask questions, generate flashcards, take quizzes, and explore mind maps — all grounded in citations back to the source.
