@@ -5,3 +5,7 @@ __pycache__/
 .env
 *.db
 *.sqlite3
+storage/uploads/*
+storage/chroma/*
+!storage/uploads/.gitkeep
+!storage/chroma/.gitkeep
