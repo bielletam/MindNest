@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useDocContext } from "@/lib/document-context";
 import { LogoMarkLarge, LogoMarkWhite } from "@/components/ui/Logo";
 import type { ChatSessionWithMessages, Source } from "@/lib/types";
@@ -171,9 +173,10 @@ export function ChatWindow({ activeSession, isLoading, pendingUserMessage, sendE
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--mn-text-2)", margin: "6px 0 7px" }}>Nest</div>
                     <div
-                      style={{ background: "var(--mn-surface-2)", border: "1px solid var(--mn-border)", borderRadius: "6px 16px 16px 16px", padding: "15px 19px", fontSize: 15, lineHeight: 1.64, color: "#dbe3ee", whiteSpace: "pre-wrap" }}
+                      className="mn-markdown"
+                      style={{ background: "var(--mn-surface-2)", border: "1px solid var(--mn-border)", borderRadius: "6px 16px 16px 16px", padding: "15px 19px", fontSize: 15, lineHeight: 1.64, color: "#dbe3ee" }}
                     >
-                      {m.content}
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                     </div>
                     {(m.sources ?? []).length > 0 && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 11 }}>

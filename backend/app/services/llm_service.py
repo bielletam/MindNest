@@ -19,8 +19,22 @@ def _chat(messages: list[dict], max_tokens: int = 1024) -> str:
 
 
 def generate(prompt: str) -> str:
-    """Send a single user-turn prompt to Groq and return the text response."""
-    return _chat([{"role": "user", "content": prompt}])
+    """Send a prompt to Groq and return the text response."""
+    return _chat(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "You are a study assistant answering questions about a student's "
+                    "documents. Format responses in clean, standard Markdown: use "
+                    "paragraphs, '-' bullet lists, and '|' tables where they genuinely "
+                    "help. Never use raw HTML tags such as <br> — use blank lines or "
+                    "Markdown syntax for spacing and line breaks instead."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ]
+    )
 
 
 def summarize_chunk(text: str) -> str:
